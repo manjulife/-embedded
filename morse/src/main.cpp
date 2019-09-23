@@ -223,8 +223,11 @@ public:
     }
 
     if (diff >= ELEMENT_PAUSE) {
+
         Serial.print("-elemnt: ");
         Serial.println(_unit);
+        _line = findCharacter(_unit);
+        Serial.println(_line);
         _unit = "";
         _isSend = false;
     }
@@ -233,13 +236,37 @@ public:
   } // END UPDATE
 private:
   String _unit;
+  String _line;
   int _num;
+  const int NUM_LETTER = 40;
   unsigned int _lastTransition;
   unsigned int now;
   bool _isSend;
   static const int UNIT_PAUSE    =  300; // ms
-  static const int ELEMENT_PAUSE = 1000; // ms
+  static const int ELEMENT_PAUSE = 900; // ms
+  // static const char* dictionary[NUM_LETTER] = {".-", "-...", "--."};
+
+  String dictionaryEn = "abcdefghijklmnopqrstuvwxyz0123456789";
+
+  String dictionaryMorse[40] = {
+  ".-", "-...", "-.-.", "-..", ".", "..-.", "--.", "....",
+  "..", ".---", "-.-", ".-..", "--", "-.", "---", ".--.",
+  "--.-", ".-.", "...", "-", "..-", "...-", ".--", "-..-",
+  "-.--", "--..", "-----", ".----", "..---", "...--",
+  "....-", ".....", "-....", "--...", "---..", "----."};
   //State _state;
+
+  char findCharacter(String sequence){
+    Serial.println();
+    char character = ' ';
+    for (int item=0; item<NUM_LETTER; item++){
+      if (dictionaryMorse[item] == sequence) {
+        character = dictionaryEn[item];
+      break;
+      } // endif
+    } // endfor
+    return character;
+  } // END findSymbol
 };
 
 MorzeKeyBtn morze(2);
