@@ -1,7 +1,12 @@
-#include <Arduino.h>
 // PROJECT: Morze
 // MAINTAINER: @manjulife
-//
+// >+<---[+]--->+<---[+]--->+<---[+]
+#include <Arduino.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x3f,20,4);
+// ---
 class MultiButton {
   public:
 
@@ -186,30 +191,86 @@ class MultiButton {
     }
 }; // END CLASS
 //
-class MorzeKeyBtn : public MultiButton {
+class ResetBtn : public MultiButton{
 public:
-  MorzeKeyBtn(int pin):
+  ResetBtn(int pin):
     MultiButton(pin){
+  }
+
+};
+
+class MorseBtn : public MultiButton{
+public:
+  MorseBtn(int pin):
+    MultiButton(pin){
+  }
+
+};
+
+
+//
+class MorseTransmitter : public ResetBtn , public MorseBtn {
+public:
+  MorseTransmitter(int Morsepin, int Resetpin, String text, int relay):
+     ResetBtn(Resetpin), MorseBtn(Morsepin){
       _num = 0;
+      _cursor = 0;
+      _letter = 0;
       _unit = "";
       _isSend =false;
+      _isOpen = false;
+      _text = text;
+      _relay = relay;
+      pinMode(_relay, OUTPUT);
+      // lcd.init();                      // initialize the lcd
+      // lcd.backlight();
+      // lcd.blink_on();
+      // pinMode(_relay, OUTPUT);
     }
 
   void update(){
-    MultiButton::update();
+    MorseBtn::update();
+    ResetBtn::update();
+
     now = millis();
-    if (MultiButton::isLongClick()) {
+    if (_isOpen){
+      lcd.clear();
+      digitalWrite(_relay, LOW);
+      delay(2000);
+      digitalWrite(_relay, HIGH);
+      delay(1000);
+      _num = 0;
+      _cursor = 0;
+      _letter = 0;
+      _unit = "";
+      _outText = "";
+      _isSend =false;
+      _isOpen =false;
+    }
+    if (MorseBtn::isLongClick()) {
         _unit = _unit +"-";
+        lcd.print("-");
         //Serial.println(_unit);
         _lastTransition = now;
         _isSend = true;
+        _cursor++;
     }
 
-    if (MultiButton::isSingleClick()) {
+    if (MorseBtn::isSingleClick()) {
         _unit = _unit + ".";
+        lcd.print(".");
         //Serial.println(_unit);
         _lastTransition = now;
         _isSend = true;
+        _cursor++;
+    }
+
+    if ((ResetBtn::isClick())&&(_letter > 0)){
+        _cursor--;
+        _letter--;
+        lcd.setCursor(_letter, 0);
+        lcd.print(" ");
+        lcd.setCursor(_letter, 0);
     }
 
     if (!_isSend) {
@@ -219,17 +280,40 @@ public:
     int diff = now - _lastTransition;
 
     if ((diff >= UNIT_PAUSE)&&(diff <= ELEMENT_PAUSE)) {
-        Serial.println("-unit");
+      //  Serial.println("-unit");
     }
 
     if (diff >= ELEMENT_PAUSE) {
 
-        Serial.print("-elemnt: ");
+        Serial.print("unit: ");
         Serial.println(_unit);
         _line = findCharacter(_unit);
-        Serial.println(_line);
+
+        //lcd.setCursor(_unit.length(),0);
+        printCharacter(_unit.length(),_letter);
+        lcd.setCursor(_letter, 0);
+        if (_line != " "){
+          Serial.println("lcd>>");
+          _outText =_outText + _line;
+          lcd.print(_line);
+          _letter++;
+        }
+//
+Serial.print("line: ");
+Serial.println(_line);
+Serial.print("outText: ");
+Serial.println(_outText);
+Serial.print("text: ");
+Serial.println(_text);
+//
+
+        if (_text == _outText ) {
+          _isOpen = true;
+          Serial.println("WIN");
+        }
         _unit = "";
         _isSend = false;
+
     }
     //Serial.println(_unit);
     //Serial.println("*****");
@@ -237,11 +321,17 @@ public:
 private:
   String _unit;
   String _line;
+  String _outText;
+  String _text;
   int _num;
+  int _cursor;
+  int _letter;
+  int _relay;
   const int NUM_LETTER = 40;
   unsigned int _lastTransition;
   unsigned int now;
   bool _isSend;
+  bool _isOpen;
   static const int UNIT_PAUSE    =  300; // ms
   static const int ELEMENT_PAUSE = 900; // ms
   // static const char* dictionary[NUM_LETTER] = {".-", "-...", "--."};
@@ -255,6 +345,13 @@ private:
   "-.--", "--..", "-----", ".----", "..---", "...--",
   "....-", ".....", "-....", "--...", "---..", "----."};
   //State _state;
+  void printCharacter(int s, int countLetter){
+    for (int item=countLetter; item<s+countLetter; item++){
+      lcd.setCursor(item,0);
+      lcd.print(" ");
+    }
+
+  }// end printCharacter
 
   char findCharacter(String sequence){
     Serial.println();
@@ -268,13 +365,25 @@ private:
     return character;
   } // END findSymbol
 };
+//
 
-MorzeKeyBtn morze(2);
 
+//
+MorseTransmitter morseTransmitter(2, 3, "san", 6);
+// MultiButton reset(3);
 void setup() {
   Serial.begin(9600);
+  lcd.init();                      // initialize the lcd
+  lcd.backlight();
+  lcd.blink_on();
 }
 
 void loop() {
-  morze.update();
+
+  morseTransmitter.update();
+  // reset.update();
+  // if (reset.isClick()) {
+    // lcd.clear();
+
+  // }
 } // END loop
