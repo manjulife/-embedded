@@ -211,7 +211,7 @@ public:
 //
 class MorseTransmitter : public ResetBtn , public MorseBtn {
 public:
-  MorseTransmitter(int Morsepin, int Resetpin, String text, int relay):
+  MorseTransmitter(int Morsepin, int Resetpin, String text, int relay, int Tonepin, int ledW):
      ResetBtn(Resetpin), MorseBtn(Morsepin){
       _num = 0;
       _cursor = 0;
@@ -219,9 +219,16 @@ public:
       _unit = "";
       _isSend =false;
       _isOpen = false;
+      _isSound = false;
+      _isDot = false;
+      _isDash = false;
       _text = text;
       _relay = relay;
+      _tone = Tonepin;
+      _ledW = ledW;
       pinMode(_relay, OUTPUT);
+      pinMode(_ledW, OUTPUT);
+      //pinMode(_tone, );
       // lcd.init();                      // initialize the lcd
       // lcd.backlight();
       // lcd.blink_on();
@@ -234,10 +241,15 @@ public:
 
     now = millis();
     if (_isOpen){
+      Serial.println("--- OPEN ---");
       lcd.clear();
+      digitalWrite(_ledW,HIGH);
       digitalWrite(_relay, LOW);
       delay(2000);
+      lcd.noBacklight();
+      lcd.noDisplay();
       digitalWrite(_relay, HIGH);
+      digitalWrite(_ledW,LOW);
       delay(1000);
       _num = 0;
       _cursor = 0;
@@ -246,13 +258,20 @@ public:
       _outText = "";
       _isSend =false;
       _isOpen =false;
+      _isSound = false;
+      _isDot = false;
+      _isDash = false;
     }
+
     if (MorseBtn::isLongClick()) {
         _unit = _unit +"-";
         lcd.print("-");
+
         //Serial.println(_unit);
         _lastTransition = now;
         _isSend = true;
+        _isSound = true;
+        _isDash = true;
         _cursor++;
     }
 
@@ -262,6 +281,8 @@ public:
         //Serial.println(_unit);
         _lastTransition = now;
         _isSend = true;
+        _isSound = true;
+        _isDot = true;
         _cursor++;
     }
 
@@ -276,11 +297,13 @@ public:
     if (!_isSend) {
       return;
     }
-
+    soundMorse();
     int diff = now - _lastTransition;
-
-    if ((diff >= UNIT_PAUSE)&&(diff <= ELEMENT_PAUSE)) {
+    if ((diff >= dotLen)&&(_isDot)) {_isSound = false; _isDot = false;}
+    if ((diff >= UNIT_PAUSE)&&(diff <= ELEMENT_PAUSE)&&(_isDash)) {
       //  Serial.println("-unit");
+      _isSound = false;
+      _isDash = false;
     }
 
     if (diff >= ELEMENT_PAUSE) {
@@ -323,15 +346,23 @@ private:
   String _line;
   String _outText;
   String _text;
+  int _tone;
   int _num;
   int _cursor;
   int _letter;
   int _relay;
+  int _ledW;
+  int note = 1200;
+  int dotLen = 100;
+  int dashLen = dotLen * 3;
   const int NUM_LETTER = 40;
   unsigned int _lastTransition;
   unsigned int now;
   bool _isSend;
   bool _isOpen;
+  bool _isSound;
+  bool _isDot;
+  bool _isDash;
   static const int UNIT_PAUSE    =  300; // ms
   static const int ELEMENT_PAUSE = 900; // ms
   // static const char* dictionary[NUM_LETTER] = {".-", "-...", "--."};
@@ -353,6 +384,14 @@ private:
 
   }// end printCharacter
 
+  void soundMorse(){
+    if (_isSound){
+      tone(_tone, note);
+    } else {
+      noTone(_tone);
+      Serial.println("sound-off");
+    }
+  }
   char findCharacter(String sequence){
     Serial.println();
     char character = ' ';
@@ -369,21 +408,40 @@ private:
 
 
 //
-MorseTransmitter morseTransmitter(2, 3, "san", 6);
+MorseTransmitter morseTransmitter(2, 3, "san", 6, 8, 9);
 // MultiButton reset(3);
+const int buttonPin = 7;     // the number of the pushbutton pin
+const int ledPin =  5;
+int buttonState = 0;
+bool isReady = false;
+
+
 void setup() {
   Serial.begin(9600);
   lcd.init();                      // initialize the lcd
-  lcd.backlight();
+  lcd.noDisplay();
   lcd.blink_on();
+  pinMode(buttonPin, INPUT);
+  pinMode(ledPin, OUTPUT);
 }
 
 void loop() {
-
-  morseTransmitter.update();
-  // reset.update();
-  // if (reset.isClick()) {
-    // lcd.clear();
-
-  // }
+  buttonState = digitalRead(buttonPin);
+  if (buttonState == HIGH) {
+  // turn LED on:
+  digitalWrite(ledPin, LOW);
+  isReady = true;
+  } else {
+  // turn LED off:
+  digitalWrite(ledPin, HIGH);
+  isReady = false;
+  }
+if (isReady){
+    lcd.backlight();
+    lcd.display();
+    morseTransmitter.update();
+} else {
+  lcd.noBacklight();
+  lcd.noDisplay();
+}
 } // END loop
