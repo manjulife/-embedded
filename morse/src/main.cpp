@@ -1,12 +1,14 @@
 // PROJECT: Morze
 // MAINTAINER: @manjulife
-// >+<---[+]--->+<---[+]--->+<---[+]
+
 #include <Arduino.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-LiquidCrystal_I2C lcd(0x3f,20,4);
-// ---
+// if LiquidCrystal_I2C lcd01(0x3f,20,4) else LiquidCrystal_I2C lcd02(0x26,20,4);
+LiquidCrystal_I2C lcd01(0x26,20,4);
+
+//---> CLASS MultiButton
 class MultiButton {
   public:
 
@@ -189,29 +191,32 @@ class MultiButton {
       (void)diff;
       return StateIdle;
     }
-}; // END CLASS
-//
+}; //<--- END CLASS MultiButton
+
+//---> CLASS ResetBtn
 class ResetBtn : public MultiButton{
 public:
   ResetBtn(int pin):
     MultiButton(pin){
   }
 
-};
+}; //<--- END CLASS RestBtn
 
+//---> CLASS MorseBtn
 class MorseBtn : public MultiButton{
 public:
   MorseBtn(int pin):
     MultiButton(pin){
   }
 
-};
+}; //<--- END CLASS MorseBtn
 
 
-//
+//---> CLASS MorseTransmitter
+//MorseBtn, RestBtn, Text, Relay, LedRelay, Sound
 class MorseTransmitter : public ResetBtn , public MorseBtn {
 public:
-  MorseTransmitter(int Morsepin, int Resetpin, String text, int relay, int Tonepin, int ledW):
+  MorseTransmitter(int Morsepin, int Resetpin, String text, int relay, int ledW, int Tonepin):
      ResetBtn(Resetpin), MorseBtn(Morsepin){
       _num = 0;
       _cursor = 0;
@@ -242,13 +247,13 @@ public:
     now = millis();
     if (_isOpen){
       Serial.println("--- OPEN ---");
-      lcd.clear();
+      lcd01.clear();
       digitalWrite(_ledW,HIGH);
-      digitalWrite(_relay, LOW);
-      delay(2000);
-      lcd.noBacklight();
-      lcd.noDisplay();
       digitalWrite(_relay, HIGH);
+      delay(10000);
+      lcd01.noBacklight();
+      lcd01.noDisplay();
+      digitalWrite(_relay, LOW);
       digitalWrite(_ledW,LOW);
       delay(1000);
       _num = 0;
@@ -265,9 +270,9 @@ public:
 
     if (MorseBtn::isLongClick()) {
         _unit = _unit +"-";
-        lcd.print("-");
-
-        //Serial.println(_unit);
+        //lcd01.print("-");
+        lcd01.print("-");
+        Serial.println(_unit);
         _lastTransition = now;
         _isSend = true;
         _isSound = true;
@@ -277,8 +282,9 @@ public:
 
     if (MorseBtn::isSingleClick()) {
         _unit = _unit + ".";
-        lcd.print(".");
-        //Serial.println(_unit);
+        //lcd01.print(".");
+        lcd01.print(".");
+        Serial.println(_unit);
         _lastTransition = now;
         _isSend = true;
         _isSound = true;
@@ -289,54 +295,56 @@ public:
     if ((ResetBtn::isClick())&&(_letter > 0)){
         _cursor--;
         _letter--;
-        lcd.setCursor(_letter, 0);
-        lcd.print(" ");
-        lcd.setCursor(_letter, 0);
+        lcd01.setCursor(_letter, 0);
+        lcd01.print(" ");
+        lcd01.setCursor(_letter, 0);
+        _outText.remove(_letter,1);
+        Serial.println(_outText);
     }
 
     if (!_isSend) {
       return;
     }
+
     soundMorse();
+
     int diff = now - _lastTransition;
     if ((diff >= dotLen)&&(_isDot)) {_isSound = false; _isDot = false;}
     if ((diff >= UNIT_PAUSE)&&(diff <= ELEMENT_PAUSE)&&(_isDash)) {
-      //  Serial.println("-unit");
-      _isSound = false;
-      _isDash = false;
+       //  Serial.println("-unit");
+        _isSound = false;
+        _isDash = false;
     }
 
     if (diff >= ELEMENT_PAUSE) {
-
         Serial.print("unit: ");
         Serial.println(_unit);
         _line = findCharacter(_unit);
-
         //lcd.setCursor(_unit.length(),0);
         printCharacter(_unit.length(),_letter);
-        lcd.setCursor(_letter, 0);
+        //lcd01.setCursor(_letter, 0);
+        lcd01.setCursor(_letter, 0);
         if (_line != " "){
           Serial.println("lcd>>");
           _outText =_outText + _line;
-          lcd.print(_line);
+        //  lcd01.print(_line);
+          lcd01.print(_line);
           _letter++;
         }
-//
-Serial.print("line: ");
-Serial.println(_line);
-Serial.print("outText: ");
-Serial.println(_outText);
-Serial.print("text: ");
-Serial.println(_text);
-//
-
-        if (_text == _outText ) {
-          _isOpen = true;
-          Serial.println("WIN");
-        }
-        _unit = "";
-        _isSend = false;
-
+    //
+    Serial.print("line: ");
+    Serial.println(_line);
+    Serial.print("outText: ");
+    Serial.println(_outText);
+    Serial.print("text: ");
+    Serial.println(_text);
+    //
+    if (_text == _outText ) {
+        _isOpen = true;
+        Serial.println("WIN");
+    }
+    _unit = "";
+    _isSend = false;
     }
     //Serial.println(_unit);
     //Serial.println("*****");
@@ -378,8 +386,8 @@ private:
   //State _state;
   void printCharacter(int s, int countLetter){
     for (int item=countLetter; item<s+countLetter; item++){
-      lcd.setCursor(item,0);
-      lcd.print(" ");
+        lcd01.setCursor(item,0);
+        lcd01.print(" ");
     }
 
   }// end printCharacter
@@ -389,7 +397,7 @@ private:
       tone(_tone, note);
     } else {
       noTone(_tone);
-      Serial.println("sound-off");
+      //Serial.println("sound-off");
     }
   }
   char findCharacter(String sequence){
@@ -404,44 +412,20 @@ private:
     return character;
   } // END findSymbol
 };
-//
+//<--- END CLASS MorseTransmitter
 
-
-//
-MorseTransmitter morseTransmitter(2, 3, "san", 6, 8, 9);
-// MultiButton reset(3);
-const int buttonPin = 7;     // the number of the pushbutton pin
-const int ledPin =  5;
-int buttonState = 0;
-bool isReady = false;
-
+//______________________ INIT __________________________
+//MorseBtn, RestBtn, Text, Relay, LedRelay, Sound, LCD
+MorseTransmitter morseTransmitter01(2, 3, "wolf", 4, 6, 9);
 
 void setup() {
   Serial.begin(9600);
-  lcd.init();                      // initialize the lcd
-  lcd.noDisplay();
-  lcd.blink_on();
-  pinMode(buttonPin, INPUT);
-  pinMode(ledPin, OUTPUT);
+  lcd01.init();
+  lcd01.backlight();
+  lcd01.display();
+  lcd01.blink_on();
 }
 
 void loop() {
-  buttonState = digitalRead(buttonPin);
-  if (buttonState == HIGH) {
-  // turn LED on:
-  digitalWrite(ledPin, LOW);
-  isReady = true;
-  } else {
-  // turn LED off:
-  digitalWrite(ledPin, HIGH);
-  isReady = false;
-  }
-if (isReady){
-    lcd.backlight();
-    lcd.display();
-    morseTransmitter.update();
-} else {
-  lcd.noBacklight();
-  lcd.noDisplay();
-}
+  morseTransmitter01.update();
 } // END loop
